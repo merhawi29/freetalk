@@ -38,6 +38,7 @@ const sendMessage = async (req, res) => {
         // Emit socket event
         try {
             const io = getIo();
+            console.log(`Message Debug: Emitting to room [${roomId}]`);
             io.to(roomId).emit("receive_message", newMessage);
         } catch (e) {
             console.error("Socket emit failed:", e);

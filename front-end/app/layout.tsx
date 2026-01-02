@@ -20,6 +20,8 @@ export const metadata: Metadata = {
 };
 
 import { ThemeProvider } from "../components/ThemeProvider";
+import { SocketProvider } from "../context/SocketContext";
+import ClientSocketWrapper from "../components/ClientSocketWrapper";
 
 export default function RootLayout({
   children,
@@ -32,10 +34,14 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
       >
         <ThemeProvider>
-          <div className="flex-grow">
-            {children}
-          </div>
-          <Footer />
+          <SocketProvider>
+            <ClientSocketWrapper>
+              <div className="flex-grow relative">
+                {children}
+              </div>
+              <Footer />
+            </ClientSocketWrapper>
+          </SocketProvider>
         </ThemeProvider>
       </body>
     </html>

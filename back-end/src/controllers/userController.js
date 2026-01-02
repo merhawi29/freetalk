@@ -1,4 +1,5 @@
 const User = require("../models/User");
+const { generateToken } = require("./authController");
 
 // @desc    Register a new user
 // @route   POST /api/users
@@ -21,7 +22,10 @@ const createUser = async (req, res) => {
             isAnonymous: true,
         });
 
-        res.status(201).json(newUser);
+        res.status(201).json({
+            ...newUser.toObject(),
+            token: generateToken(newUser._id)
+        });
     } catch (error) {
         console.error("Error creating user:", error);
         res.status(500).json({ message: "Server Error" });

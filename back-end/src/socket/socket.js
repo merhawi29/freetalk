@@ -19,6 +19,14 @@ const initSocket = (server) => {
             console.log(`User Connected: ${socket.id} (Anonymous)`);
         }
 
+        // Explicit join for robustness
+        socket.on("join_id", (id) => {
+            if (id) {
+                socket.join(id);
+                console.log(`Socket ${socket.id} explicitly joined ID room: ${id}`);
+            }
+        });
+
         // Helper to emit stats
         const emitStats = () => {
             const categories = ["stress", "career", "relationships", "random"];

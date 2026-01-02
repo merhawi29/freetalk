@@ -7,11 +7,13 @@ const api = axios.create({
 // Add a request interceptor to inject the token
 api.interceptors.request.use(
     (config) => {
-        const userStr = localStorage.getItem('user');
-        if (userStr) {
-            const user = JSON.parse(userStr);
-            if (user.token) {
-                config.headers.Authorization = `Bearer ${user.token}`;
+        if (typeof window !== 'undefined') {
+            const userStr = localStorage.getItem('user');
+            if (userStr) {
+                const user = JSON.parse(userStr);
+                if (user.token) {
+                    config.headers.Authorization = `Bearer ${user.token}`;
+                }
             }
         }
         return config;
@@ -23,6 +25,9 @@ api.interceptors.request.use(
 
 export const createUser = async (username: string) => {
     const response = await api.post('/users', { username });
+    if (response.data && typeof window !== 'undefined') {
+        localStorage.setItem('user', JSON.stringify(response.data));
+    }
     return response.data;
 };
 
@@ -46,6 +51,16 @@ export const inviteUser = async (roomId: string, userId: string) => {
     return response.data;
 };
 
+export const joinRoom = async (roomId: string) => {
+    const response = await api.post(`/rooms/${roomId}/join`);
+    return response.data;
+};
+
+export const deleteRoom = async (roomId: string) => {
+    const response = await api.delete(`/rooms/${roomId}`);
+    return response.data;
+};
+
 export const sendMessage = async (roomId: string, senderId: string, content: string) => {
     const response = await api.post('/messages', { roomId, senderId, content });
     return response.data;
@@ -59,7 +74,7 @@ export const getMessages = async (roomId: string) => {
 // Auth and User
 export const register = async (userData: any) => {
     const response = await api.post('/auth/register', userData);
-    if (response.data.token) {
+    if (response.data.token && typeof window !== 'undefined') {
         localStorage.setItem('user', JSON.stringify(response.data));
     }
     return response.data;
@@ -67,14 +82,16 @@ export const register = async (userData: any) => {
 
 export const login = async (userData: any) => {
     const response = await api.post('/auth/login', userData);
-    if (response.data.token) {
+    if (response.data.token && typeof window !== 'undefined') {
         localStorage.setItem('user', JSON.stringify(response.data));
     }
     return response.data;
 }
 
 export const logout = () => {
-    localStorage.removeItem('user');
+    if (typeof window !== 'undefined') {
+        localStorage.removeItem('user');
+    }
 }
 
 export const getCurrentUser = () => {
@@ -97,7 +114,7 @@ export const updateProfile = async (userData: any, token: string) => {
         headers: { Authorization: `Bearer ${token}` }
     };
     const response = await api.put('/auth/profile', userData, config);
-    if (response.data.token) {
+    if (response.data.token && typeof window !== 'undefined') {
         localStorage.setItem('user', JSON.stringify(response.data));
     }
     return response.data;

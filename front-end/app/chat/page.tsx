@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, Suspense } from "react";
-import { createUser, createRoom, sendMessage, getMessages, getRoom, getCurrentUser } from "../../services/api";
+import { createUser, createRoom, sendMessage, getMessages, getRoom, getCurrentUser, joinRoom } from "../../services/api";
 import { io } from "socket.io-client";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from 'next/link';
@@ -9,6 +9,9 @@ import ChatSidebar from "../../components/ChatSidebar";
 import CreateRoomModal from "../../components/CreateRoomModal";
 import InviteUserModal from "../../components/InviteUserModal";
 import Toast from "../../components/Toast";
+import InvitationPopup from "../../components/InvitationPopup";
+
+import { useSocket } from "../../context/SocketContext";
 
 interface Message {
     _id: string;
@@ -17,14 +20,14 @@ interface Message {
     createdAt: string;
 }
 
-let socket: any;
-
 function ChatContent() {
     const [step, setStep] = useState<"user" | "chat">("user");
     const [username, setUsername] = useState("");
     const [userId, setUserId] = useState("");
     const [roomId, setRoomId] = useState("");
     const [userCount, setUserCount] = useState(0);
+
+    const { socket, refreshSocket } = useSocket();
 
     // Chat State
     const [message, setMessage] = useState("");
@@ -50,52 +53,42 @@ function ChatContent() {
             setUserId(user._id);
             setStep("chat"); // Directly go to chat interface (sidebar will show)
         }
-    }, []);
+    }, [userId]); // Depend on userId to refresh if needed
 
     useEffect(() => {
         if (roomParam) {
             setRoomId(roomParam);
-            if (userId) { // If user is logged in/registered, auto join
+            const user = getCurrentUser();
+            if (user?._id) {
                 handleJoinRoom(roomParam);
             }
         }
-    }, [roomParam, userId]);
+    }, [roomParam]);
 
     useEffect(() => {
-        // Initialize Socket Connection
-        // Pass userId if available to identify the connection
-        const query = userId ? { userId } : {};
-        socket = io("http://localhost:5000", { query });
+        if (!socket || step !== "chat" || !roomId) return;
 
-        socket.on("invitation_received", (data: any) => {
-            setToastMessage(`Invited to ${data.name} by ${data.inviter}`);
-            setShowToast(true);
-            setTimeout(() => setShowToast(false), 5000);
-        });
+        console.log(`ChatPage: Joining room [${roomId}] as user [${userId}]`);
+        socket.emit("join_room", roomId);
+
+        const handleReceiveMessage = (newMessage: Message) => {
+            console.log("ChatPage: Message received via socket", newMessage);
+            setMessages((prev) => [...prev, newMessage]);
+        };
+
+        const handleRoomCount = (count: number) => {
+            console.log("ChatPage: User count update", count);
+            setUserCount(count);
+        };
+
+        socket.on("receive_message", handleReceiveMessage);
+        socket.on("room_user_count", handleRoomCount);
 
         return () => {
-            socket.disconnect();
-        };
-    }, [userId]);
-
-    useEffect(() => {
-        if (step === "chat" && roomId) {
-            socket.emit("join_room", roomId);
-
-            socket.on("receive_message", (newMessage: Message) => {
-                setMessages((prev) => [...prev, newMessage]);
-            });
-
-            socket.on("room_user_count", (count: number) => {
-                setUserCount(count);
-            });
-
-            return () => {
-                socket.off("receive_message");
-                socket.off("room_user_count");
-            }
+            socket.off("receive_message", handleReceiveMessage);
+            socket.off("room_user_count", handleRoomCount);
         }
-    }, [step, roomId]);
+    }, [socket, step, roomId]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -108,6 +101,10 @@ function ChatContent() {
             const user = await createUser(username);
             setUserId(user._id);
             setStep("chat");
+
+            // CRITICAL: Refresh the socket connection now that we have a userId
+            refreshSocket();
+
             if (roomParam) {
                 handleJoinRoom(roomParam);
             }
@@ -120,14 +117,12 @@ function ChatContent() {
     const handleJoinRoom = async (id: string = roomId) => {
         if (!id.trim()) return;
         try {
-            // Check if room exists first
+            // Call joinRoom API to ensure user is in participants list
             try {
-                await getRoom(id);
-            } catch (e) {
-                // If checking fails (e.g. 404), maybe we want to create it? 
-                // For now, assume selection from sidebar or valid ID means it exists or we fail.
-                // If it's a completely new ID typed in URL, we might want to auto-create public room?
-                // Let's stick to simple "Try to get messages" which implies joining
+                await joinRoom(id);
+            } catch (joinErr) {
+                console.error("Failed to join room via API", joinErr);
+                // If it's private and no invite, this might fail, which is correct
             }
 
             setRoomId(id);
@@ -201,6 +196,8 @@ function ChatContent() {
                     onSelectRoom={handleJoinRoom}
                     onCreateRoom={() => setIsCreateModalOpen(true)}
                     currentRoomId={roomId}
+                    username={username}
+                    userId={userId}
                 />
             </div>
 
@@ -273,7 +270,7 @@ function ChatContent() {
                                     </svg>
                                     Invite
                                 </button>
-                                <button onClick={() => setStep("room")} className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">Switch Room</button>
+                                <button onClick={() => { setRoomId(""); router.push("/chat"); }} className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">Switch Room</button>
                                 <Link href="/" className="text-sm bg-red-500/10 text-red-500 dark:text-red-400 border border-red-500/20 px-3 py-1.5 rounded-lg hover:bg-red-500 hover:text-white transition-colors">
                                     Exit
                                 </Link>

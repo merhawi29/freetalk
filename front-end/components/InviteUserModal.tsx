@@ -20,9 +20,9 @@ export default function InviteUserModal({ isOpen, onClose, roomId }: InviteUserM
         e.preventDefault();
         setStatus("loading");
         try {
-            await inviteUser(roomId, userId);
+            const data = await inviteUser(roomId, userId);
             setStatus("success");
-            setMessage("Invitation sent successfully!");
+            setMessage(data.message || "Invitation sent successfully!");
             setTimeout(() => {
                 onClose();
                 setStatus("idle");
