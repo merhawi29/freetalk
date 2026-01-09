@@ -10,8 +10,10 @@ import CreateRoomModal from "../../components/CreateRoomModal";
 import InviteUserModal from "../../components/InviteUserModal";
 import Toast from "../../components/Toast";
 import InvitationPopup from "../../components/InvitationPopup";
+import InviteVideoModal from "../../components/InviteVideoModal";
 
 import { useSocket } from "../../context/SocketContext";
+import { useVideoCall } from "../../context/VideoCallContext";
 
 interface Message {
     _id: string;
@@ -28,6 +30,14 @@ function ChatContent() {
     const [userCount, setUserCount] = useState(0);
 
     const { socket, refreshSocket } = useSocket();
+
+    const {
+        callUser,
+        joinGroupVideo
+    } = useVideoCall();
+
+    const [inviteToVideoId, setInviteToVideoId] = useState("");
+    const [isInviteVideoModalOpen, setIsInviteVideoModalOpen] = useState(false);
 
     // Chat State
     const [message, setMessage] = useState("");
@@ -53,7 +63,7 @@ function ChatContent() {
             setUserId(user._id);
             setStep("chat"); // Directly go to chat interface (sidebar will show)
         }
-    }, [userId]); // Depend on userId to refresh if needed
+    }, []); // Check once on mount
 
     useEffect(() => {
         if (roomParam) {
@@ -224,6 +234,12 @@ function ChatContent() {
                     roomId={roomId}
                 />
 
+                <InviteVideoModal
+                    isOpen={isInviteVideoModalOpen}
+                    onClose={() => setIsInviteVideoModalOpen(false)}
+                    onStartCall={(targetId) => callUser(targetId, roomId)}
+                />
+
                 {!roomId ? (
                     <div className="flex-1 flex flex-col items-center justify-center p-8 text-center opacity-50">
                         <div className="w-24 h-24 bg-slate-200 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6">
@@ -270,7 +286,27 @@ function ChatContent() {
                                     </svg>
                                     Invite
                                 </button>
-                                <button onClick={() => { setRoomId(""); router.push("/chat"); }} className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">Switch Room</button>
+
+                                <button
+                                    onClick={() => setIsInviteVideoModalOpen(true)}
+                                    className="text-sm bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 px-3 py-1.5 rounded-lg hover:bg-purple-500 hover:text-white transition-colors flex items-center gap-1"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                                        <path d="M1.5 8.67v8.58a3 3 0 003 3h15a3 3 0 003-3V8.67l-8.928 5.493a3 3 0 01-3.144 0L1.5 8.67z" />
+                                        <path d="M22.5 6.908V6.75a3 3 0 00-3-3h-15a3 3 0 00-3 3v.158l9.714 5.978a1.5 1.5 0 001.572 0L22.5 6.908z" />
+                                    </svg>
+                                    Call
+                                </button>
+
+                                <button
+                                    onClick={() => joinGroupVideo(roomId)}
+                                    className="text-sm bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 px-3 py-1.5 rounded-lg hover:bg-green-500 hover:text-white transition-colors flex items-center gap-1"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
+                                        <path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                    Group
+                                </button>
                                 <Link href="/" className="text-sm bg-red-500/10 text-red-500 dark:text-red-400 border border-red-500/20 px-3 py-1.5 rounded-lg hover:bg-red-500 hover:text-white transition-colors">
                                     Exit
                                 </Link>

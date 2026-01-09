@@ -1,8 +1,7 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useRef } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { io, Socket } from "socket.io-client";
-import { getCurrentUser } from "../services/api";
 
 interface SocketContextType {
     socket: Socket | null;
@@ -10,71 +9,73 @@ interface SocketContextType {
     refreshSocket: () => void;
 }
 
-const SocketContext = createContext<SocketContextType>({
-    socket: null,
-    userId: null,
-    refreshSocket: () => { },
-});
+const SocketContext = createContext<SocketContextType | undefined>(undefined);
 
-export const useSocket = () => useContext(SocketContext);
+export const useSocket = () => {
+    const context = useContext(SocketContext);
+    if (!context) {
+        throw new Error("useSocket must be used within a SocketProvider");
+    }
+    return context;
+};
 
-export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
+export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [socket, setSocket] = useState<Socket | null>(null);
     const [userId, setUserId] = useState<string | null>(null);
     const socketRef = useRef<Socket | null>(null);
 
-    const connectSocket = () => {
-        // Disconnect existing socket if any
+    const initializeSocket = useCallback(() => {
+        // Clear existing socket if any
         if (socketRef.current) {
             socketRef.current.disconnect();
         }
 
-        const user = getCurrentUser();
-        const currentId = user?._id || null;
-        setUserId(currentId);
+        const userStr = localStorage.getItem("user");
+        let currentUserId = null;
+        let currentUsername = null;
 
-        const query = currentId ? { userId: currentId } : {};
-        const newSocket = io("http://localhost:5000", {
-            query,
-            reconnection: true,
-            reconnectionAttempts: 5
-        });
+        if (userStr) {
+            const user = JSON.parse(userStr);
+            currentUserId = user._id || user.id;
+            currentUsername = user.username;
+        } else {
+            currentUsername = localStorage.getItem("anonymousName");
+        }
 
-        newSocket.on("connect", () => {
-            console.log("Socket Context: Connected", newSocket.id, "as", currentId || "Anonymous");
-            if (currentId) {
-                console.log(`Socket Context: Emitting join_id for [${currentId}]`);
-                newSocket.emit("join_id", currentId);
-            }
-        });
+        setUserId(currentUserId);
 
+        const newSocket = io("http://localhost:5000");
         socketRef.current = newSocket;
         setSocket(newSocket);
-    };
 
-    useEffect(() => {
-        connectSocket();
-
-        // Listen for storage changes (e.g. login in another tab)
-        const handleStorageChange = (e: StorageEvent) => {
-            if (e.key === 'user') {
-                console.log("Socket Context: Storage changed, refreshing socket");
-                connectSocket();
+        newSocket.on("connect", () => {
+            console.log("[Socket] Connected:", newSocket.id);
+            if (currentUserId || currentUsername) {
+                newSocket.emit("register-user", {
+                    userId: currentUserId,
+                    username: currentUsername
+                });
             }
-        };
+        });
 
-        window.addEventListener('storage', handleStorageChange);
+        newSocket.on("disconnect", () => {
+            console.log("[Socket] Disconnected");
+        });
 
-        return () => {
-            if (socketRef.current) socketRef.current.disconnect();
-            window.removeEventListener('storage', handleStorageChange);
-        };
+        return newSocket;
     }, []);
 
-    const refreshSocket = () => {
-        console.log("Socket Context: Manual refresh");
-        connectSocket();
-    };
+    useEffect(() => {
+        const newSocket = initializeSocket();
+        return () => {
+            newSocket.disconnect();
+        };
+    }, [initializeSocket]);
+
+    const refreshSocket = useCallback(() => {
+        console.log("[Socket] Refreshing socket connection...");
+        initializeSocket();
+    }, [initializeSocket]);
 
     return (
         <SocketContext.Provider value={{ socket, userId, refreshSocket }}>

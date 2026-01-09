@@ -1,67 +1,117 @@
 const { Server } = require("socket.io");
 
 let io;
+const userSocketMap = {}; // userId -> socketId
+const activeInvitations = {}; // requestId -> { from, to, roomId }
 
 const initSocket = (server) => {
     io = new Server(server, {
         cors: {
-            origin: "*", // Allow all origins for dev; restrict in prod
+            origin: "*",
             methods: ["GET", "POST"],
         },
     });
 
     io.on("connection", (socket) => {
-        const userId = socket.handshake.query.userId;
-        if (userId) {
-            socket.join(userId);
-            console.log(`User Connected: ${socket.id} (User ID: ${userId})`);
-        } else {
-            console.log(`User Connected: ${socket.id} (Anonymous)`);
-        }
+        console.log(`Socket Connected: ${socket.id}`);
 
-        // Explicit join for robustness
-        socket.on("join_id", (id) => {
-            if (id) {
-                socket.join(id);
-                console.log(`Socket ${socket.id} explicitly joined ID room: ${id}`);
+        socket.on("register-user", ({ userId, username }) => {
+            console.log(`Socket Register: User [${username}] ID [${userId}] to Socket [${socket.id}]`);
+            userSocketMap[userId] = socket.id;
+
+            // Join a room named after the userId to allow targeting by database ID
+            if (userId) {
+                socket.join(userId.toString());
             }
-        });
-
-        // Helper to emit stats
-        const emitStats = () => {
-            const categories = ["stress", "career", "relationships", "random"];
-            const stats = {};
-            categories.forEach(cat => {
-                const room = io.sockets.adapter.rooms.get(cat);
-                stats[cat] = room ? room.size : 0;
+            socket.on("disconnect", () => {
+                console.log(`Socket Disconnected: ${socket.id}`);
+                if (userSocketMap[userId] === socket.id) {
+                    delete userSocketMap[userId];
+                }
             });
-            io.emit("room_stats_update", stats);
-        };
+        });
 
         socket.on("join_room", (roomId) => {
+            console.log(`Socket Join: Socket [${socket.id}] joining room [${roomId}]`);
             socket.join(roomId);
-            console.log(`User with ID: ${socket.id} joined room: ${roomId}`);
-
-            // Emit count to specific room
-            const roomSize = io.sockets.adapter.rooms.get(roomId)?.size || 0;
-            io.to(roomId).emit("room_user_count", roomSize);
-
-            emitStats();
         });
 
-        socket.on("disconnecting", () => {
-            for (const room of socket.rooms) {
-                if (room !== socket.id) {
-                    // User is leaving, count will decrease
-                    const count = (io.sockets.adapter.rooms.get(room)?.size || 0) - 1;
-                    io.to(room).emit("room_user_count", count > 0 ? count : 0);
-                }
+        // --- WebRTC signaling ---
+        socket.on("webrtc:signal", ({ to, from, signal }) => {
+            const targetSocketId = userSocketMap[to] || to;
+            console.log(`WebRTC Signal: ${from} -> ${to} (Target: ${targetSocketId}) Type: ${signal.type}`);
+            io.to(targetSocketId).emit("webrtc:signal", {
+                from,
+                fromSocketId: socket.id,
+                signal
+            });
+        });
+
+        // --- Video Call Handlers ---
+        socket.on("video-call:request", ({ to, from, roomId }) => {
+            const targetSocketId = userSocketMap[to];
+            const requestId = `req_${Date.now()}`;
+            console.log(`Video Call Request: ${from} -> ${to} (Target: ${targetSocketId})`);
+
+            if (targetSocketId) {
+                activeInvitations[requestId] = { from, to, roomId };
+                io.to(targetSocketId).emit("video-call:received", {
+                    from,
+                    fromSocketId: socket.id,
+                    roomId,
+                    requestId
+                });
+
+                // 30 second timeout for the call
+                setTimeout(() => {
+                    if (activeInvitations[requestId]) {
+                        console.log(`Video Call Timeout: ${requestId}`);
+                        delete activeInvitations[requestId];
+                        socket.emit("video-call:timeout", { to });
+                        io.to(targetSocketId).emit("video-call:timeout-received");
+                    }
+                }, 30000);
             }
         });
 
-        socket.on("disconnect", () => {
-            console.log("User Disconnected", socket.id);
-            emitStats();
+        socket.on("video-call:accept", ({ to, from, roomId, requestId }) => {
+            console.log(`Video Call Accepted: ${from} -> ${to}`);
+            delete activeInvitations[requestId];
+            const targetSocketId = userSocketMap[to];
+            if (targetSocketId) {
+                io.to(targetSocketId).emit("video-call:accepted", {
+                    from,
+                    fromSocketId: socket.id
+                });
+            }
+        });
+
+        socket.on("video-call:reject", ({ to, from, roomId, requestId }) => {
+            console.log(`Video Call Rejected: ${from} -> ${to}`);
+            delete activeInvitations[requestId];
+            const targetSocketId = userSocketMap[to];
+            if (targetSocketId) {
+                io.to(targetSocketId).emit("video-call:rejected", { from });
+            }
+        });
+
+        socket.on("video-call:hangup", ({ roomId, from }) => {
+            console.log(`Video Call Hangup: ${from} in ${roomId || 'private'}`);
+            if (roomId) {
+                socket.to(roomId).emit("video-call:hungup", { from, fromSocketId: socket.id });
+            } else {
+                socket.broadcast.emit("video-call:hungup", { from, fromSocketId: socket.id });
+            }
+        });
+
+        // --- Group Video ---
+        socket.on("group-video:join", (roomId) => {
+            console.log(`Group Video Join: ${socket.id} in ${roomId}`);
+            socket.join(roomId);
+            socket.to(roomId).emit("group-video:user-joined", {
+                userId: socket.id,
+                socketId: socket.id
+            });
         });
     });
 

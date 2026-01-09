@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 
 import { ThemeProvider } from "../components/ThemeProvider";
 import { SocketProvider } from "../context/SocketContext";
-import ClientSocketWrapper from "../components/ClientSocketWrapper";
+import { VideoCallProvider } from "../context/VideoCallContext";
 
 export default function RootLayout({
   children,
@@ -33,16 +33,14 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
       >
-        <ThemeProvider>
-          <SocketProvider>
-            <ClientSocketWrapper>
-              <div className="flex-grow relative">
-                {children}
-              </div>
-              <Footer />
-            </ClientSocketWrapper>
-          </SocketProvider>
-        </ThemeProvider>
+        <SocketProvider>
+          <VideoCallProvider>
+            <div className="flex-grow relative">
+              {children}
+            </div>
+            <Footer />
+          </VideoCallProvider>
+        </SocketProvider>
       </body>
     </html>
   );
