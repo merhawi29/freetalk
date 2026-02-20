@@ -3,11 +3,11 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useSocket } from "./SocketContext";
 import { useWebRTC } from "../hooks/useWebRTC";
-import { VideoCallOverlay } from "../components/VideoCallOverlay";
-import InvitationPopup from "../components/InvitationPopup";
+import { VideoCallOverlay } from "../components/video/VideoCallOverlay";
+import InvitationPopup from "../components/video/InvitationPopup";
 import { useRouter } from "next/navigation";
 import { joinRoom as joinRoomApi } from "../services/api";
-import Toast from "../components/Toast";
+import Toast from "../components/ui/Toast";
 
 interface VideoCallContextType {
     isCalling: boolean;

@@ -1,8 +1,8 @@
 "use client";
 
-import Navbar from '../../components/Navbar';
+import Navbar from '../../components/layout/Navbar';
 import { useState } from 'react';
-import Toast from '../../components/Toast';
+import Toast from '../../components/ui/Toast';
 
 export default function ContactPage() {
     const [email, setEmail] = useState('');

@@ -5,19 +5,20 @@ import { createUser, createRoom, sendMessage, getMessages, getRoom, getCurrentUs
 import { io } from "socket.io-client";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from 'next/link';
-import ChatSidebar from "../../components/ChatSidebar";
-import CreateRoomModal from "../../components/CreateRoomModal";
-import InviteUserModal from "../../components/InviteUserModal";
-import Toast from "../../components/Toast";
-import InvitationPopup from "../../components/InvitationPopup";
-import InviteVideoModal from "../../components/InviteVideoModal";
+import ChatSidebar from "../../components/chat/ChatSidebar";
+import CreateRoomModal from "../../components/chat/CreateRoomModal";
+import InviteUserModal from "../../components/ui/InviteUserModal";
+import Toast from "../../components/ui/Toast";
+import InvitationPopup from "../../components/video/InvitationPopup";
+import InviteVideoModal from "../../components/video/InviteVideoModal";
+import ParticipantsDropdown from "../../components/chat/ParticipantsDropdown";
 
 import { useSocket } from "../../context/SocketContext";
 import { useVideoCall } from "../../context/VideoCallContext";
 
 interface Message {
     _id: string;
-    sender: { username: string; isAnonymous: boolean };
+    sender: { _id: string; username: string; isAnonymous: boolean };
     content: string;
     createdAt: string;
 }
@@ -28,6 +29,9 @@ function ChatContent() {
     const [userId, setUserId] = useState("");
     const [roomId, setRoomId] = useState("");
     const [userCount, setUserCount] = useState(0);
+    const [participants, setParticipants] = useState<{ socketId: string; userId: string; username: string; isInCall?: boolean; mood?: string }[]>([]);
+    const [typingUsers, setTypingUsers] = useState<string[]>([]);
+    const [currentMood, setCurrentMood] = useState("");
 
     const { socket, refreshSocket } = useSocket();
 
@@ -49,6 +53,7 @@ function ChatContent() {
     const [toastMessage, setToastMessage] = useState("");
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+    const [inviteTargetId, setInviteTargetId] = useState("");
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const searchParams = useSearchParams();
@@ -91,12 +96,27 @@ function ChatContent() {
             setUserCount(count);
         };
 
+        const handleParticipants = (data: any[]) => {
+            console.log("ChatPage: Participants update", data);
+            setParticipants(data);
+        };
+
+        const handleUserTyping = ({ userId, isTyping }: { userId: string; isTyping: boolean }) => {
+            setTypingUsers(prev =>
+                isTyping ? [...new Set([...prev, userId])] : prev.filter(id => id !== userId)
+            );
+        };
+
         socket.on("receive_message", handleReceiveMessage);
         socket.on("room_user_count", handleRoomCount);
+        socket.on("room_participants", handleParticipants);
+        socket.on("user_typing", handleUserTyping);
 
         return () => {
             socket.off("receive_message", handleReceiveMessage);
             socket.off("room_user_count", handleRoomCount);
+            socket.off("room_participants", handleParticipants);
+            socket.off("user_typing", handleUserTyping);
         }
     }, [socket, step, roomId]);
 
@@ -156,8 +176,33 @@ function ChatContent() {
         try {
             await sendMessage(roomId, userId, message);
             setMessage("");
+            // Stop typing immediately when sent
+            if (socket) socket.emit("typing", { roomId, isTyping: false });
         } catch (err) {
             console.error(err);
+        }
+    };
+
+    // Handle Typing Emitter
+    useEffect(() => {
+        if (!socket || !roomId || !message.trim()) {
+            if (socket && roomId) socket.emit("typing", { roomId, isTyping: false });
+            return;
+        }
+
+        socket.emit("typing", { roomId, isTyping: true });
+
+        const timeout = setTimeout(() => {
+            socket.emit("typing", { roomId, isTyping: false });
+        }, 3000);
+
+        return () => clearTimeout(timeout);
+    }, [message, socket, roomId]);
+
+    const handleMoodChange = (mood: string) => {
+        setCurrentMood(mood);
+        if (socket && roomId) {
+            socket.emit("update-mood", { roomId, mood });
         }
     };
 
@@ -213,8 +258,11 @@ function ChatContent() {
 
             {/* Main Chat Area */}
             <div className="flex-1 flex flex-col h-full relative">
-
-                {/* Mobile Header / Sidebar Toggle would go here */}
+                <CreateRoomModal
+                    isOpen={isCreateModalOpen}
+                    onClose={() => setIsCreateModalOpen(false)}
+                    onRoomCreated={handleRoomCreated}
+                />
 
                 {showToast && (
                     <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50">
@@ -222,16 +270,14 @@ function ChatContent() {
                     </div>
                 )}
 
-                <CreateRoomModal
-                    isOpen={isCreateModalOpen}
-                    onClose={() => setIsCreateModalOpen(false)}
-                    onRoomCreated={handleRoomCreated}
-                />
-
                 <InviteUserModal
                     isOpen={isInviteModalOpen}
-                    onClose={() => setIsInviteModalOpen(false)}
+                    onClose={() => {
+                        setIsInviteModalOpen(false);
+                        setInviteTargetId("");
+                    }}
                     roomId={roomId}
+                    initialUserId={inviteTargetId}
                 />
 
                 <InviteVideoModal
@@ -276,7 +322,20 @@ function ChatContent() {
                                     </p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-4">
+                                {/* Mood Selection Component */}
+                                <div className="hidden sm:flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-full border border-slate-200 dark:border-slate-700">
+                                    {['😊', '😔', '🙏', '🔥', '🌈'].map(m => (
+                                        <button
+                                            key={m}
+                                            onClick={() => handleMoodChange(currentMood === m ? "" : m)}
+                                            className={`w-7 h-7 flex items-center justify-center rounded-full text-sm transition-all hover:scale-110 ${currentMood === m ? 'bg-white dark:bg-slate-900 shadow-sm outline outline-1 outline-blue-500' : 'opacity-40 hover:opacity-100'}`}
+                                        >
+                                            {m}
+                                        </button>
+                                    ))}
+                                </div>
+
                                 <button
                                     onClick={() => setIsInviteModalOpen(true)}
                                     className="text-sm bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 px-3 py-1.5 rounded-lg hover:bg-blue-500 hover:text-white transition-colors flex items-center gap-1"
@@ -289,7 +348,7 @@ function ChatContent() {
 
                                 <button
                                     onClick={() => setIsInviteVideoModalOpen(true)}
-                                    className="text-sm bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 px-3 py-1.5 rounded-lg hover:bg-purple-500 hover:text-white transition-colors flex items-center gap-1"
+                                    className="text-sm bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 px-3 py-1.5 rounded-lg hover:bg-purple-600 hover:text-white transition-colors flex items-center gap-1"
                                 >
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
                                         <path d="M1.5 8.67v8.58a3 3 0 003 3h15a3 3 0 003-3V8.67l-8.928 5.493a3 3 0 01-3.144 0L1.5 8.67z" />
@@ -297,6 +356,17 @@ function ChatContent() {
                                     </svg>
                                     Call
                                 </button>
+
+                                <ParticipantsDropdown
+                                    participants={participants}
+                                    currentUserId={userId}
+                                    typingUsers={typingUsers}
+                                    onInviteChat={(targetId) => {
+                                        setInviteTargetId(targetId);
+                                        setIsInviteModalOpen(true);
+                                    }}
+                                    onInviteVideo={(targetId) => callUser(targetId, roomId)}
+                                />
 
                                 <button
                                     onClick={() => joinGroupVideo(roomId)}
@@ -339,6 +409,7 @@ function ChatContent() {
                                                     ? "bg-blue-600 text-white rounded-br-none"
                                                     : "bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-transparent rounded-bl-none"
                                                     }`}
+                                                title={isMe ? "You" : `User ID: ${msg.sender._id || 'Anonymous'}`}
                                             >
                                                 {msg.content}
                                             </div>

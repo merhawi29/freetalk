@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getRooms, deleteRoom } from "../services/api";
-import { useSocket } from "../context/SocketContext";
+import { getRooms, deleteRoom } from "../../services/api";
+import { useSocket } from "../../context/SocketContext";
 
 interface ChatSidebarProps {
     onSelectRoom: (roomId: string) => void;
@@ -150,14 +150,12 @@ export default function ChatSidebar({ onSelectRoom, onCreateRoom, currentRoomId,
                     <div className="flex-1 overflow-hidden">
                         <p className="text-sm font-bold truncate">{username}</p>
                         <p
-                            className="text-[10px] text-slate-500 truncate cursor-pointer hover:text-blue-500 transition-colors"
-                            title="Click to copy your ID"
+                            className="text-[9px] text-slate-400 hover:text-blue-500 transition-colors flex items-center gap-1 cursor-pointer"
                             onClick={() => {
                                 navigator.clipboard.writeText(userId);
-                                alert("User ID copied to clipboard!");
                             }}
                         >
-                            ID: {userId}
+                            Copy ID: {userId.substring(0, 6)}...
                         </p>
                     </div>
                 </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createRoom } from "../services/api";
+import { createRoom } from "../../services/api";
 
 interface CreateRoomModalProps {
     isOpen: boolean;

@@ -4,8 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { login } from '../../services/api';
-import Navbar from '../../components/Navbar';
-import Toast from '../../components/Toast';
+import Navbar from '../../components/layout/Navbar';
+import Toast from '../../components/ui/Toast';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');

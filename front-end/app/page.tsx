@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { io } from "socket.io-client";
-import Navbar from "../components/Navbar";
+import Navbar from "../components/layout/Navbar";
 
 interface RoomStats {
   [key: string]: number;

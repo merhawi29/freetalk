@@ -1,4 +1,4 @@
-import { Message } from "../types";
+import { Message } from "../../app/talk/types";
 
 export function MessageList({ messages }: { messages: Message[] }) {
   return (

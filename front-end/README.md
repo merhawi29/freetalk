@@ -1,5 +1,8 @@
 # Free Talk – Anonymous Mental-Health Chat
 
+> [!NOTE]
+> This is the **Front-end** specific documentation. For the full project overview, vision, and architecture, see the [Main README](../README.md).
+
 A **real-time-ready, anonymous chat platform** designed for mental-health support.  
 Users can join chat rooms without creating an account, stay anonymous, and connect with others in a safe environment.
 

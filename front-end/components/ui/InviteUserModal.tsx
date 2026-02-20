@@ -1,16 +1,23 @@
 "use client";
 
-import { useState } from "react";
-import { inviteUser } from "../services/api";
+import { useState, useEffect } from "react";
+import { inviteUser } from "../../services/api";
 
 interface InviteUserModalProps {
     isOpen: boolean;
     onClose: () => void;
     roomId: string;
+    initialUserId?: string;
 }
 
-export default function InviteUserModal({ isOpen, onClose, roomId }: InviteUserModalProps) {
-    const [userId, setUserId] = useState("");
+export default function InviteUserModal({ isOpen, onClose, roomId, initialUserId = "" }: InviteUserModalProps) {
+    const [userId, setUserId] = useState(initialUserId);
+
+    useEffect(() => {
+        if (isOpen) {
+            setUserId(initialUserId);
+        }
+    }, [isOpen, initialUserId]);
     const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
     const [message, setMessage] = useState("");
 

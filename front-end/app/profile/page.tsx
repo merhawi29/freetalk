@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCurrentUser, updateProfile } from '../../services/api';
-import Navbar from '../../components/Navbar';
+import Navbar from '../../components/layout/Navbar';
 
 export default function ProfilePage() {
     const [user, setUser] = useState<any>(null);

@@ -1,9 +1,9 @@
 "use client";
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { getCurrentUser, logout } from '../services/api';
+import { getCurrentUser, logout } from '../../services/api';
 import { useRouter } from 'next/navigation';
-import { useTheme } from '../components/ThemeProvider';
+import { useTheme } from './ThemeProvider';
 
 export default function Navbar() {
     const [user, setUser] = useState<any>(null);
