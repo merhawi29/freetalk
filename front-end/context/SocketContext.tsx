@@ -44,7 +44,8 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         setUserId(currentUserId);
 
-        const newSocket = io("http://localhost:5000");
+        const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:5000";
+        const newSocket = io(socketUrl);
         socketRef.current = newSocket;
         setSocket(newSocket);
 

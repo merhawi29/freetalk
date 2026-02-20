@@ -24,7 +24,8 @@ export default function LandingPage() {
     // Initial Fetch
     const fetchStats = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/rooms/stats");
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+        const res = await axios.get(`${apiUrl}/rooms/stats`);
         setStats(res.data);
       } catch (e) {
         console.error("Failed to fetch stats");
@@ -33,7 +34,8 @@ export default function LandingPage() {
     fetchStats();
 
     // Socket Listener for Live Updates
-    const socket = io("http://localhost:5000");
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:5000";
+    const socket = io(socketUrl);
     socket.on("room_stats_update", (updatedStats: RoomStats) => {
       setStats(updatedStats);
     });
