@@ -7,8 +7,12 @@ const activeInvitations = {}; // requestId -> { from, to, roomId }
 const initSocket = (server) => {
     io = new Server(server, {
         cors: {
-            origin: "*",
+            origin: [
+                "http://localhost:4000",
+                "https://freetalk1.vercel.app",
+            ],
             methods: ["GET", "POST"],
+            credentials: true,
         },
     });
 
